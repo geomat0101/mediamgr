@@ -33,13 +33,14 @@
 #   via the command:
 #       pip install numpy
 
+import datetime
 import sys
 import dlib
 
 if len(sys.argv) < 3:
     print(
         "Call this program like this:\n"
-        "   ./cnn_face_detector.py mmod_human_face_detector.dat ../examples/faces/*.jpg\n"
+        "   ./cnn_face_detector.py mmod_human_face_detector.dat faces/*.jpg\n"
         "You can get the mmod_human_face_detector.dat file from:\n"
         "    http://dlib.net/files/mmod_human_face_detector.dat.bz2")
     exit()
@@ -48,6 +49,7 @@ cnn_face_detector = dlib.cnn_face_detection_model_v1(sys.argv[1])
 win = dlib.image_window()
 
 for f in sys.argv[2:]:
+    start = datetime.datetime.now()
     print("Processing file: {}".format(f))
     img = dlib.load_rgb_image(f)
     # The 1 in the second argument indicates that we should upsample the image
@@ -76,4 +78,6 @@ for f in sys.argv[2:]:
     win.clear_overlay()
     win.set_image(img)
     win.add_overlay(rects)
+
+    print("rendering time: " + repr(datetime.datetime.now()-start))
     dlib.hit_enter_to_continue()
