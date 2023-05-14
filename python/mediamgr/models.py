@@ -30,12 +30,6 @@ def connect ():
 
 
 class CollectionDocument ():
-    # these get set automatically, though the value of _id can
-    # be influenced by setting the "_key" value
-    # _id === {collection}/{_key}
-    # "_rev" is just off limits
-    prohibited_keys = ["_id", "_rev"]
-    required_keys = []
 
     def __init__ (self, dbconn: Database, collection: str):
         self.dbconn = dbconn
@@ -43,6 +37,13 @@ class CollectionDocument ():
         self.collection = self.dbconn.collection(collection)
         self.document = None
         self.newDoc = None # is this a pre-existing doc
+
+        # these get set automatically, though the value of _id can
+        # be influenced by setting the "_key" value
+        # _id === {collection}/{_key}
+        # "_rev" is just off limits
+        self.prohibited_keys = ["_id", "_rev"]
+        self.required_keys = []
 
     
     def __repr__ (self):
