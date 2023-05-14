@@ -101,6 +101,7 @@ class CollectionDocument ():
         
         if self.newDoc:
             metadata = self.collection.insert(self.document)
+            self.newDoc = False
         else:
             metadata = self.collection.update(self.document)
 
