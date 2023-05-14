@@ -13,7 +13,7 @@
 #   The examples/faces folder contains some jpg images of people.  You can run
 #   this program on them and see the detections by executing the
 #   following command:
-#       ./cnn_face_detector.py ../../models/mmod_human_face_detector.dat faces/*.jpg
+#       ./cnn_face_detector.py ../models/mmod_human_face_detector.dat faces/*.jpg
 #
 #
 # COMPILING/INSTALLING THE DLIB PYTHON INTERFACE
@@ -40,7 +40,7 @@ import dlib
 if len(sys.argv) < 3:
     print(
         "Call this program like this:\n"
-        "   ./cnn_face_detector.py ../../models/mmod_human_face_detector.dat faces/*.jpg\n"
+        "   ./cnn_face_detector.py ../models/mmod_human_face_detector.dat faces/*.jpg\n"
         "You can get the mmod_human_face_detector.dat file from:\n"
         "    http://dlib.net/files/mmod_human_face_detector.dat.bz2")
     exit()
