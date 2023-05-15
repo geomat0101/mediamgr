@@ -153,7 +153,7 @@ class CastDocument (CollectionDocument):
         ai.new()
         ai.document['_from'] = self._id
         ai.document['_to'] = media_id
-        ai.save()
+        return ai.save()
 
     def template_init(self):
         super().template_init()
@@ -181,7 +181,7 @@ class FacesDocument (CollectionDocument):
         fm.new()
         fm.document['_from'] = self._id
         fm.document['_to'] = face_id
-        fm.save()
+        return fm.save()
 
 
 class MediaDocument (CollectionDocument):
