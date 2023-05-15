@@ -109,8 +109,8 @@ class CollectionDocument ():
         if '_rev' in document:
             self._rev = document['_rev']
 
+        self.validate(document=document)
         self.document = document
-        self.validate()
 
     
     def setKey (self, key: str):
@@ -121,27 +121,27 @@ class CollectionDocument ():
 
 
     def template_init (self):
-        self.setDocument({})
+        newDoc = {}
         for k,v in schema[self.collection_name]['rule']['properties'].items():
             vtype = v['type'].lower()
             if vtype == 'null':
-                self.document[k] = None
+                newDoc[k] = None
             elif vtype == 'boolean':
-                self.document[k] = False
+                newDoc[k] = False
             elif vtype == 'object':
-                self.document[k] = {}
+                newDoc[k] = {}
             elif vtype == 'array':
-                self.document[k] = []
+                newDoc[k] = []
             elif vtype == 'number':
-                self.document[k] = 0.0
+                newDoc[k] = 0.0
             elif vtype == 'string':
-                self.document[k] = ''
+                newDoc[k] = ''
             elif vtype == 'integer':
-                self.document[k] = 0
+                newDoc[k] = 0
             else:
                 raise ValueError("illegal type value '{}' in jsonschema for collection '{}'" % vtype, self.collection_name)
         
-        self.validate()
+        self.setDocument(newDoc)
         
 
     def validate (self, document=None):
