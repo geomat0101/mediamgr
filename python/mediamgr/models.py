@@ -1,7 +1,7 @@
 #!/bin/env python
 
 import mediamgr.config as config
-from mediamgr.schema import edge_collections, indexes, schema
+from mediamgr.schema import collections, indexes, schema
 import arango
 from arango.database import Database
 import json
@@ -17,7 +17,7 @@ def connect ():
 
     for c in schema.keys():
         if not db.has_collection(c):
-            if c in edge_collections:
+            if c in collections['edge']:
                 db.create_collection(c, edge=True, schema=schema[c])
             else:
                 db.create_collection(c, schema=schema[c])

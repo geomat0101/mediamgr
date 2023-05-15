@@ -1,5 +1,9 @@
 
-edge_collections = ['appears_in', 'face_matches_face']
+# vertex collections are currently using standard collections
+collections = {
+    'edge': ['appears_in', 'face_matches_face'],
+    'vertex': ['cast', 'faces', 'media']
+}
 
 
 indexes = {
