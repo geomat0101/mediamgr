@@ -1,3 +1,9 @@
+
+indexes = {
+    'faces': ['cast_id', 'media_id']
+}
+
+
 schema = {}
 
 schema['cast'] = {

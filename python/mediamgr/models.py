@@ -1,7 +1,7 @@
 #!/bin/env python
 
 import mediamgr.config as config
-from mediamgr.schema import schema
+from mediamgr.schema import indexes, schema
 import arango
 from arango.database import Database
 import json
@@ -19,14 +19,17 @@ def connect ():
             config.arango_dbname, 
             username=config.arango_username, 
             password=config.arango_password)
-    
-    for c in collections:
-        if not db.has_collection(c):
-            db.create_collection(c, schema=schema[c])
 
-    for e in edges:
-        if not db.has_collection(e):
-            db.create_collection(e, edge=True, schema=schema[e])
+    for c in collections + edges:
+        if not db.has_collection(c):
+            if c in edges:
+                db.create_collection(c, edge=True, schema=schema[c])
+            else:
+                db.create_collection(c, schema=schema[c])
+
+            if c in indexes:
+                for field in indexes[c]:
+                    db.collection(c).add_persistent_index(fields=[field])
 
     return(db)
 
