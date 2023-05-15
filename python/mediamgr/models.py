@@ -1,16 +1,11 @@
 #!/bin/env python
 
 import mediamgr.config as config
-from mediamgr.schema import indexes, schema
+from mediamgr.schema import edge_collections, indexes, schema
 import arango
 from arango.database import Database
 import json
 from jsonschema.validators import validate as json_validate
-
-# adding collections to these lists will ensure they all
-# exist at connect time or else they will be created
-collections = "cast faces media".split()
-edges = "appears_in face_matches_face".split()
 
 
 def connect ():
@@ -20,10 +15,14 @@ def connect ():
             username=config.arango_username, 
             password=config.arango_password)
 
-    for c in collections + edges:
+    for c in schema.keys():
         if not db.has_collection(c):
-            if c in edges:
-                db.create_collection(c, edge=True, schema=schema[c])
+            if c in edge_collections:
+                # FIXME: schemas don't validate in arango with edge collections.
+                # local jsonschema passes, looks like an arango bug
+
+                # db.create_collection(c, edge=True, schema=schema[c])
+                db.create_collection(c, edge=True)
             else:
                 db.create_collection(c, schema=schema[c])
 
@@ -93,9 +92,9 @@ class CollectionDocument ():
         else:
             metadata = self.collection.update(self.document)
 
-        self._id = metadata['_id']
-        self._key = metadata['_key']
-        self._rev = metadata['_rev']
+        self._id = self.document['_id'] = metadata['_id']
+        self._key = self.document['_key'] = metadata['_key']
+        self._rev = self.document['_rev'] = metadata['_rev']
 
         return metadata
 

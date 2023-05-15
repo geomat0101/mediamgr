@@ -1,4 +1,7 @@
 
+edge_collections = ['appears_in', 'face_matches_face']
+
+
 indexes = {
     'faces': ['cast_id', 'media_id']
 }
