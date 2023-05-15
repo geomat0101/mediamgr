@@ -37,6 +37,9 @@ class CollectionDocument ():
         self.collection = self.dbconn.collection(collection)
         self.document = None
         self.newDoc = None # is this a pre-existing doc
+        self._id = ''
+        self._key = ''
+        self._rev = ''
 
         # these get set automatically, though the value of _id can
         # be influenced by setting the "_key" value
@@ -54,6 +57,12 @@ class CollectionDocument ():
         if str != type(query):
             raise ValueError("single string value searches only")
         self.newDoc = False
+        self.setDocument(self.collection.get(query))
+
+
+    def id_required (self):
+        if not self._id:
+            raise ValueError("No _id on current document.  Saved yet?")
 
     
     def new (self, document: dict = None):
@@ -61,7 +70,38 @@ class CollectionDocument ():
         if document is None:
             self.template_init()
         else:
-            self.document = document
+            self.setDocument(document)
+
+
+    def save (self):
+        if not self.validate():
+            raise ValueError("Validation Failed!")
+        
+        if self.newDoc:
+            metadata = self.collection.insert(self.document)
+            self.newDoc = False
+        else:
+            metadata = self.collection.update(self.document)
+
+        self._id = metadata['_id']
+        self._key = metadata['_key']
+        self._rev = metadata['_rev']
+
+        return metadata
+
+
+    def setDocument (self, document):
+        if dict != type(document):
+            raise ValueError("document must be a dict")
+        
+        if '_id' in document:
+            self._id = document['_id']
+        if '_key' in document:
+            self._key = document['_key']
+        if '_rev' in document:
+            self._rev = document['_rev']
+
+        self.document = document
 
     
     def setKey (self, key: str):
@@ -95,19 +135,6 @@ class CollectionDocument ():
         return(True)
     
 
-    def save (self):
-        if not self.validate():
-            raise ValueError("Validation Failed!")
-        
-        if self.newDoc:
-            metadata = self.collection.insert(self.document)
-            self.newDoc = False
-        else:
-            metadata = self.collection.update(self.document)
-
-        return metadata
-
-
 class EdgeCollectionDocument (CollectionDocument):
     def __init__ (self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -118,6 +145,15 @@ class CastDocument (CollectionDocument):
     def __init__ (self, dbconn: Database):
         super().__init__(dbconn, 'cast')
         self.required_keys += ["name", "refs"]
+
+    def appears_in (self, media_id: str):
+        self.id_required()
+
+        ai = AppearsInDocument(self.dbconn)
+        ai.new()
+        ai.document['_from'] = self._id
+        ai.document['_to'] = media_id
+        ai.save()
 
     def template_init(self):
         super().template_init()
@@ -137,6 +173,15 @@ class FacesDocument (CollectionDocument):
     def __init__ (self, dbconn: Database):
         super().__init__(dbconn, 'faces')
         self.required_keys += ['face_identifier', 'media_id', 'cast_id']
+    
+    def matches_face (self, face_id):
+        self.id_required()
+
+        fm = FaceMatchesFaceDocument(self.dbconn)
+        fm.new()
+        fm.document['_from'] = self._id
+        fm.document['_to'] = face_id
+        fm.save()
 
 
 class MediaDocument (CollectionDocument):
