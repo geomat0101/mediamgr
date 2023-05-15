@@ -18,11 +18,7 @@ def connect ():
     for c in schema.keys():
         if not db.has_collection(c):
             if c in edge_collections:
-                # FIXME: schemas don't validate in arango with edge collections.
-                # local jsonschema passes, looks like an arango bug
-
-                # db.create_collection(c, edge=True, schema=schema[c])
-                db.create_collection(c, edge=True)
+                db.create_collection(c, edge=True, schema=schema[c])
             else:
                 db.create_collection(c, schema=schema[c])
 

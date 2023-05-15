@@ -57,7 +57,7 @@ schema['appears_in'] = {
             'first_seen':   {'type': 'string'},
             'last_seen':    {'type': 'string'}
         },
-        'required': ['_from', '_to', 'first_seen', 'last_seen']
+        'required': ['first_seen', 'last_seen']
     },
     'level': 'moderate',
     'message': 'Schema Validation Failed.'
@@ -71,7 +71,7 @@ schema['face_matches_face'] = {
             '_to':          {'type': 'string'},
             'confidence':   {'type': 'string'}
         },
-        'required': ['_from', '_to', 'confidence']
+        'required': ['confidence']
     },
     'level': 'moderate',
     'message': 'Schema Validation Failed.'
