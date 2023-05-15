@@ -1,9 +1,11 @@
 #!/bin/env python
 
 import mediamgr.config as config
+from mediamgr.schema import schema
 import arango
 from arango.database import Database
 import json
+from jsonschema.validators import validate as json_validate
 
 # adding collections to these lists will ensure they all
 # exist at connect time or else they will be created
@@ -20,11 +22,11 @@ def connect ():
     
     for c in collections:
         if not db.has_collection(c):
-            db.create_collection(c)
+            db.create_collection(c, schema=schema[c])
 
     for e in edges:
         if not db.has_collection(e):
-            db.create_collection(e, edge=True)
+            db.create_collection(e, edge=True, schema=schema[e])
 
     return(db)
 
@@ -46,7 +48,6 @@ class CollectionDocument ():
         # _id === {collection}/{_key}
         # "_rev" is just off limits
         self.prohibited_keys = ["_id", "_rev"]
-        self.required_keys = []
 
     
     def __repr__ (self):
@@ -77,6 +78,12 @@ class CollectionDocument ():
         if not self.validate():
             raise ValueError("Validation Failed!")
         
+        for k in self.prohibited_keys:
+            try:
+                del self.document[k]
+            except KeyError:
+                pass
+
         if self.newDoc:
             metadata = self.collection.insert(self.document)
             self.newDoc = False
@@ -94,6 +101,7 @@ class CollectionDocument ():
         if dict != type(document):
             raise ValueError("document must be a dict")
         
+        self._id = self._key = self._rev = ''
         if '_id' in document:
             self._id = document['_id']
         if '_key' in document:
@@ -102,6 +110,7 @@ class CollectionDocument ():
             self._rev = document['_rev']
 
         self.document = document
+        self.validate()
 
     
     def setKey (self, key: str):
@@ -112,39 +121,43 @@ class CollectionDocument ():
 
 
     def template_init (self):
-        self.document = {}
-        for k in self.required_keys:
-            self.document[k] = ''
+        self.setDocument({})
+        for k,v in schema[self.collection_name]['rule']['properties'].items():
+            vtype = v['type'].lower()
+            if vtype == 'null':
+                self.document[k] = None
+            elif vtype == 'boolean':
+                self.document[k] = False
+            elif vtype == 'object':
+                self.document[k] = {}
+            elif vtype == 'array':
+                self.document[k] = []
+            elif vtype == 'number':
+                self.document[k] = 0.0
+            elif vtype == 'string':
+                self.document[k] = ''
+            elif vtype == 'integer':
+                self.document[k] = 0
+            else:
+                raise ValueError("illegal type value '{}' in jsonschema for collection '{}'" % vtype, self.collection_name)
+        
+        self.validate()
+        
 
+    def validate (self, document=None):
+        if document is None:
+            document = self.document
 
-    def validate (self):
-        if not dict == type(self.document):
+        if not dict == type(document):
             raise ValueError("document must be a dict")
         
-        for k in self.prohibited_keys:
-            try:
-                del self.document[k]
-            except KeyError:
-                pass
-
-        for k in self.required_keys:
-            if k not in self.document:
-                raise ValueError("Missing required value for '{}'" % k)
-        
-        json.dumps(self.document) # test that it is serializable
+        json_validate(document, schema[self.collection_name]['rule'])
         return(True)
     
-
-class EdgeCollectionDocument (CollectionDocument):
-    def __init__ (self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.required_keys += ['_from', '_to']
-
 
 class CastDocument (CollectionDocument):
     def __init__ (self, dbconn: Database):
         super().__init__(dbconn, 'cast')
-        self.required_keys += ["name", "refs"]
 
     def appears_in (self, media_id: str):
         self.id_required()
@@ -154,25 +167,23 @@ class CastDocument (CollectionDocument):
         ai.document['_from'] = self._id
         ai.document['_to'] = media_id
         return ai.save()
+    
+    def get_faces (self):
+        self.id_required()
 
-    def template_init(self):
-        super().template_init()
-        self.document['refs'] = []
+        f = FacesDocument(self.dbconn)
+        return f.collection.find({'cast_id': self._id})
+    
+    def get_media (self):
+        self.id_required()
 
-    def validate(self):
-        if not super().validate():
-            raise ValueError("Validation Failed!")
-
-        if type([]) != type(self.document['refs']):
-            raise ValueError('refs must be a list')
-        
-        return(True)
+        m = MediaDocument(self.dbconn)
+        raise NotImplementedError("needs a graph traversal")
 
 
 class FacesDocument (CollectionDocument):
     def __init__ (self, dbconn: Database):
         super().__init__(dbconn, 'faces')
-        self.required_keys += ['face_identifier', 'media_id', 'cast_id']
     
     def matches_face (self, face_id):
         self.id_required()
@@ -187,30 +198,20 @@ class FacesDocument (CollectionDocument):
 class MediaDocument (CollectionDocument):
     def __init__ (self, dbconn: Database):
         super().__init__(dbconn, 'media')
-        self.required_keys += ["metadata"]
+    
+    def get_faces (self):
+        self.id_required()
 
-    def template_init(self):
-        super().template_init()
-        self.document['metadata'] = {}
-
-    def validate(self):
-        if not super().validate():
-            raise ValueError("Validation Failed!")
-
-        if dict != type(self.document['metadata']):
-            raise ValueError('metadata must be a dict')
-        
-        return(True)
+        f = FacesDocument(self.dbconn)
+        return f.collection.find({'media_id': self._id})
 
 
-class AppearsInDocument (EdgeCollectionDocument):
+class AppearsInDocument (CollectionDocument):
     def __init__(self, dbconn: Database):
         super().__init__(dbconn, 'appears_in')
-        self.required_keys += ['first_seen', 'last_seen']
 
 
-class FaceMatchesFaceDocument (EdgeCollectionDocument):
+class FaceMatchesFaceDocument (CollectionDocument):
     def __init__(self, dbconn: Database):
         super().__init__(dbconn, 'face_matches_face')
-        self.required_keys += ['confidence']
 
