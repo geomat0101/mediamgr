@@ -1,7 +1,8 @@
 #!/bin/env python
 
+import mediamgr.aql as aql
 import mediamgr.config as config
-from mediamgr.schema import collections, indexes, schema
+from mediamgr.schema import collections, graphs, indexes, schema
 import arango
 from arango.database import Database
 import json
@@ -25,6 +26,15 @@ def connect ():
             if c in indexes:
                 for field in indexes[c]:
                     db.collection(c).add_persistent_index(fields=[field])
+
+    for g, v in graphs.items():
+        if not db.has_graph(g):
+            graph = db.create_graph(g)
+            graph.create_edge_definition(
+                edge_collection=v['edge_collection'],
+                from_vertex_collections=v['from_vertex_collections'],
+                to_vertex_collections=v['to_vertex_collections']
+            )
 
     return(db)
 
@@ -159,7 +169,6 @@ class CastDocument (CollectionDocument):
 
     def appears_in (self, media_id: str):
         self.id_required()
-
         ai = AppearsInDocument(self.dbconn)
         ai.new()
         ai.document['_from'] = self._id
@@ -168,24 +177,28 @@ class CastDocument (CollectionDocument):
     
     def get_faces (self):
         self.id_required()
-
         f = FacesDocument(self.dbconn)
         return f.collection.find({'cast_id': self._id})
     
     def get_media (self):
         self.id_required()
-
-        m = MediaDocument(self.dbconn)
-        raise NotImplementedError("needs a graph traversal")
+        return aql.execute_saved_query(self.dbconn, 
+                                       'media_by_cast', 
+                                       cast_id=self._id)
 
 
 class FacesDocument (CollectionDocument):
     def __init__ (self, dbconn: Database):
         super().__init__(dbconn, 'faces')
     
+    def get_matching_faces (self):
+        self.id_required()
+        return aql.execute_saved_query(self.dbconn,
+                                       'faces_matching_face',
+                                       face_id=self._id)
+
     def matches_face (self, face_id):
         self.id_required()
-
         fm = FaceMatchesFaceDocument(self.dbconn)
         fm.new()
         fm.document['_from'] = self._id
@@ -196,10 +209,17 @@ class FacesDocument (CollectionDocument):
 class MediaDocument (CollectionDocument):
     def __init__ (self, dbconn: Database):
         super().__init__(dbconn, 'media')
+
+    
+    def get_cast (self):
+        self.id_required()
+        return aql.execute_saved_query(self.dbconn,
+                                       'cast_by_media',
+                                       media_id=self._id)
+
     
     def get_faces (self):
         self.id_required()
-
         f = FacesDocument(self.dbconn)
         return f.collection.find({'media_id': self._id})
 
