@@ -1,11 +1,12 @@
 
-# vertex collections are currently using standard collections
+# collections not listed here default to 'standard' collections
 collections = {
     'edge': ['appears_in', 'face_matches_face'],
     'vertex': ['cast', 'faces', 'media']
 }
 
 
+# these are created after the collections
 graphs = {
     'casting_graph': {
         'edge_collection': 'appears_in',
@@ -20,10 +21,27 @@ graphs = {
 }
 
 
+# these create separate persistent indexes for each property in the list
 indexes = {
     'faces': ['cast_id', 'media_id']
 }
 
+
+# collection schemas
+# keys are the collection names
+
+# rule, level, and message are arangodb specific
+
+# the rule value conforms to the jsonschema standard
+# https://json-schema.org/draft/2020-12/json-schema-validation.html#name-validation-keywords-for-any
+
+# the top level of the schema for these will always be type: object
+
+# do NOT put the _from or _to properties in the required list for edge collections
+#   arango will fail validation on these even though jsonschema will pass them
+
+# do NOT put the _id, _key, _rev, or _oldrev properties in the schema anywhere
+#   especially _rev, as the existence (or not) decides whether we try to insert or update on save
 
 schema = {}
 

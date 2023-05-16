@@ -4,18 +4,25 @@ import mediamgr.aql as aql
 import mediamgr.config as config
 from mediamgr.schema import collections, graphs, indexes, schema
 import arango
+from arango.cursor import Cursor
 from arango.database import Database
+from arango.result import Result
 import json
 from jsonschema.validators import validate as json_validate
 
 
-def connect ():
+def connect () -> Database:
+    """Connect to ArangoDB
+
+    uses connection settings in mediamgr.config
+    """
     client = arango.ArangoClient(hosts=config.arango_url)
     db = client.db(
             config.arango_dbname, 
             username=config.arango_username, 
             password=config.arango_password)
 
+    # check for missing collections and create if needed
     for c in schema.keys():
         if not db.has_collection(c):
             if c in collections['edge']:
@@ -24,9 +31,12 @@ def connect ():
                 db.create_collection(c, schema=schema[c])
 
             if c in indexes:
+                # this is only safe because we just created the collection
+                # schema updates need to check if an index exists first
                 for field in indexes[c]:
                     db.collection(c).add_persistent_index(fields=[field])
 
+    # check for missing graphs and create if needed
     for g, v in graphs.items():
         if not db.has_graph(g):
             graph = db.create_graph(g)
@@ -40,49 +50,72 @@ def connect ():
 
 
 class CollectionDocument ():
+    """Base class for managing documents within a named ArangoDB collection
+
+    This defines the base methods which are then extended by classes that 
+    implement interfaces for interacting with objects backed by specific
+    db collections.
+    """
 
     def __init__ (self, dbconn: Database, collection: str):
+        """Instantiate a collection object
+
+        dbconn      --  db handle from mediamgr.connect()
+        collection  --  name of collection to load
+        """
         self.dbconn = dbconn
         self.collection_name = collection
         self.collection = self.dbconn.collection(collection)
-        self.document = None
-        self.newDoc = None # is this a pre-existing doc
-        self._id = ''
-        self._key = ''
-        self._rev = ''
 
-        # these get set automatically, though the value of _id can
-        # be influenced by setting the "_key" value
-        # _id === {collection}/{_key}
-        # "_rev" is just off limits
-        self.prohibited_keys = ["_id", "_rev"]
+        self.document = None    # The Document - use setDocument to load an entire top-level doc.
+                                #   Manipulating individual property values directly is fine
+                                #   as long as they don't violate the collection's schema
+
+        self._id = ''           # {collection}/{_key} -- arangodb managed at save
+        self._key = ''          # can be user-specified via setKey()
+        self._rev = ''          # arangoDB internal document versioning
+
+        self.prohibited_keys = ["_id", "_rev"]  # arangodb managed, filtered just prior to save
 
     
     def __repr__ (self):
         return json.dumps(self.document, indent=4)
 
 
-    def get (self, query):
+    def get (self, query: str):
+        """Get a record from a collection
+
+        query   --  Document ID or key
+        """
         if str != type(query):
-            raise ValueError("single string value searches only")
-        self.newDoc = False
+            raise ValueError("need str: _id or _key value")
         self.setDocument(self.collection.get(query))
 
 
     def id_required (self):
+        """Verifies the _id property is set"""
         if not self._id:
             raise ValueError("No _id on current document.  Saved yet?")
 
     
     def new (self, document: dict = None):
-        self.newDoc = True
+        """Create a new collection document
+
+        document    --  optional user-supplied dictionary conforming to the collection schema
+                        None will populate the document with an empty template
+        """
         if document is None:
             self.template_init()
         else:
             self.setDocument(document)
 
 
-    def save (self):
+    def save (self) -> dict:
+        """Save the collection document
+        
+        Validates and saves the document to the ArangoDB collection
+        Returns the metadata from the server after the insert/update
+        """
         if not self.validate():
             raise ValueError("Validation Failed!")
         
@@ -92,11 +125,10 @@ class CollectionDocument ():
             except KeyError:
                 pass
 
-        if self.newDoc:
-            metadata = self.collection.insert(self.document)
-            self.newDoc = False
-        else:
+        if '_rev' in self.document:
             metadata = self.collection.update(self.document)
+        else:
+            metadata = self.collection.insert(self.document)
 
         self._id = self.document['_id'] = metadata['_id']
         self._key = self.document['_key'] = metadata['_key']
@@ -105,7 +137,11 @@ class CollectionDocument ():
         return metadata
 
 
-    def setDocument (self, document):
+    def setDocument (self, document: dict):
+        """setter method for the collection document
+        
+        document    --  dict conforming to the collection's schema
+        """
         if dict != type(document):
             raise ValueError("document must be a dict")
         
@@ -122,6 +158,7 @@ class CollectionDocument ():
 
     
     def setKey (self, key: str):
+        """setter method for the document's _key property"""
         if self.document is None:
             self.template_init()
         
@@ -129,30 +166,42 @@ class CollectionDocument ():
 
 
     def template_init (self):
-        newDoc = {}
+        """Generate a new document using a template based on the collection's schema"""
+        doc = {}
         for k,v in schema[self.collection_name]['rule']['properties'].items():
             vtype = v['type'].lower()
             if vtype == 'null':
-                newDoc[k] = None
+                doc[k] = None
             elif vtype == 'boolean':
-                newDoc[k] = False
+                doc[k] = False
             elif vtype == 'object':
-                newDoc[k] = {}
+                doc[k] = {}
             elif vtype == 'array':
-                newDoc[k] = []
+                doc[k] = []
             elif vtype == 'number':
-                newDoc[k] = 0.0
+                doc[k] = 0.0
             elif vtype == 'string':
-                newDoc[k] = ''
+                doc[k] = ''
             elif vtype == 'integer':
-                newDoc[k] = 0
+                doc[k] = 0
             else:
                 raise ValueError("illegal type value '{}' in jsonschema for collection '{}'" % vtype, self.collection_name)
         
-        self.setDocument(newDoc)
+        if '_rev' in doc:
+            # this is a new document, and having _rev in there will make save try to update it 
+            # instead of insert it.  This means somebody put _rev into the collection schema 
+            # and should not have.
+            del doc['_rev']
+
+        self.setDocument(doc)
         
 
-    def validate (self, document=None):
+    def validate (self, document: dict = None):
+        """Validate against the collection's jsonschema definition
+        
+        document    --  documents other than the current object's may be submitted for validation
+                        None will validate the current object's document by default
+        """
         if document is None:
             document = self.document
 
@@ -164,10 +213,16 @@ class CollectionDocument ():
     
 
 class CastDocument (CollectionDocument):
+    """Derived class for documents in the 'cast' collection"""
+
     def __init__ (self, dbconn: Database):
         super().__init__(dbconn, 'cast')
 
-    def appears_in (self, media_id: str):
+    def appears_in (self, media_id: str) -> dict:
+        """Create an 'appears_in' edge from this document to a media document
+
+        media_id    --  Id of the target 'media' collection document
+        """
         self.id_required()
         ai = AppearsInDocument(self.dbconn)
         ai.new()
@@ -175,12 +230,20 @@ class CastDocument (CollectionDocument):
         ai.document['_to'] = media_id
         return ai.save()
     
-    def get_faces (self):
+    def get_faces (self) -> Result[Cursor]:
+        """Get faces linked to this document
+        
+        Returns an iterable cursor with 'faces' collection documents
+        """
         self.id_required()
         f = FacesDocument(self.dbconn)
         return f.collection.find({'cast_id': self._id})
     
-    def get_media (self):
+    def get_media (self) -> Result[Cursor]:
+        """Get media linked to this document
+        
+        Returns an iterable cursor with 'media' collection documents
+        """
         self.id_required()
         return aql.execute_saved_query(self.dbconn, 
                                        'media_by_cast', 
@@ -188,16 +251,26 @@ class CastDocument (CollectionDocument):
 
 
 class FacesDocument (CollectionDocument):
+    """Derived class for documents in the 'faces' collection"""
+
     def __init__ (self, dbconn: Database):
         super().__init__(dbconn, 'faces')
     
-    def get_matching_faces (self):
+    def get_matching_faces (self) -> Result[Cursor]:
+        """Get faces linked to this document
+        
+        Returns an iterable cursor with 'faces' collection documents
+        """
         self.id_required()
         return aql.execute_saved_query(self.dbconn,
                                        'faces_matching_face',
                                        face_id=self._id)
 
-    def matches_face (self, face_id):
+    def matches_face (self, face_id) -> dict:
+        """Create a 'face_matches_face' edge from this document to another face document
+
+        face_id    --  Id of the target 'faces' collection document
+        """
         self.id_required()
         fm = FaceMatchesFaceDocument(self.dbconn)
         fm.new()
@@ -207,29 +280,43 @@ class FacesDocument (CollectionDocument):
 
 
 class MediaDocument (CollectionDocument):
+    """Derived class for documents in the 'media' collection"""
+
     def __init__ (self, dbconn: Database):
         super().__init__(dbconn, 'media')
 
     
-    def get_cast (self):
+    def get_cast (self) -> Result[Cursor]:
+        """Get cast linked to this document
+        
+        Returns an iterable cursor with 'cast' collection documents
+        """
         self.id_required()
         return aql.execute_saved_query(self.dbconn,
                                        'cast_by_media',
                                        media_id=self._id)
 
     
-    def get_faces (self):
+    def get_faces (self) -> Result[Cursor]:
+        """Get faces linked to this document
+        
+        Returns an iterable cursor with 'faces' collection documents
+        """
         self.id_required()
         f = FacesDocument(self.dbconn)
         return f.collection.find({'media_id': self._id})
 
 
 class AppearsInDocument (CollectionDocument):
+    """Derived class for documents in the 'appears_in' edge collection"""
+
     def __init__(self, dbconn: Database):
         super().__init__(dbconn, 'appears_in')
 
 
 class FaceMatchesFaceDocument (CollectionDocument):
+    """Derived class for documents in the 'face_matches_face' edge collection"""
+
     def __init__(self, dbconn: Database):
         super().__init__(dbconn, 'face_matches_face')
 

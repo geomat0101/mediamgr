@@ -1,11 +1,23 @@
+from arango.cursor import Cursor
 from arango.database import Database
+from arango.result import Result
 
-def execute_saved_query(db: Database, query_name: str, **kwargs):
+def execute_saved_query(db: Database, query_name: str, **kwargs) -> Result[Cursor]:
+    """Execute a saved query and return the cursor
+
+    db          --  arango.database.Database instance
+    query_name  --  key in saved_queries dict
+    **kwargs    --  k/v params mapping to the query's bind_var requirements
+                    see query definition for variable names
+
+    Example:
+        execute_saved_query(db, 'myQuery', barOne='foo', bazTwo='bar'[, ...])
+    """
     query = saved_queries[query_name]['query']
     bv = {}
     for v in saved_queries[query_name]['bind_vars']:
         if v not in kwargs:
-            raise ValueError("missing required parameter: {}" % v)
+            raise ValueError("missing required parameter: '{}'" % v)
         bv[v] = kwargs[v]
 
     return db.aql.execute(query, bind_vars=bv)
