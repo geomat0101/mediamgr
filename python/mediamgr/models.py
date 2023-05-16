@@ -1,5 +1,3 @@
-#!/bin/env python
-
 import mediamgr.aql as aql
 import mediamgr.config as config
 from mediamgr.schema import collections, graphs, indexes, schema
@@ -21,23 +19,63 @@ def connect () -> Database:
             config.arango_dbname, 
             username=config.arango_username, 
             password=config.arango_password)
+    
+    if not db.has_collection('mmconfig'):
+        db.create_collection('mmconfig')
+    
+    mmconfig = db.collection('mmconfig')
+    if not mmconfig.has('loaded_versions'):
+        doc = {
+            '_key': 'loaded_versions',
+            'schemas': {},
+            'graphs': {}
+        }
+        mmconfig.insert(doc)
+    
+    schema_updated = False
+    loaded_versions = mmconfig.get('loaded_versions')
 
-    # check for missing collections and create if needed
+    # check for old/missing collections and update/create if needed
     for c in schema.keys():
         if not db.has_collection(c):
             if c in collections['edge']:
-                db.create_collection(c, edge=True, schema=schema[c])
+                db.create_collection(c, edge=True, schema=schema[c]['schema'])
             else:
-                db.create_collection(c, schema=schema[c])
+                db.create_collection(c, schema=schema[c]['schema'])
 
             if c in indexes:
                 # this is only safe because we just created the collection
                 # schema updates need to check if an index exists first
                 for field in indexes[c]:
                     db.collection(c).add_persistent_index(fields=[field])
+            
+            loaded_versions['schemas'][c] = schema[c]['version']
+            schema_updated = True
 
-    # check for missing graphs and create if needed
+        elif c not in loaded_versions['schemas'] or schema[c]['version'] > loaded_versions['schemas'][c]:
+            # schema upgrade
+            db.collection(c).configure(schema=schema[c]['schema'])
+
+            if c in indexes:
+                indexed_fields = [ _['fields'][0] for _ in db.collection(c).indexes() ]
+                for field in indexes[c]:
+                    if field not in indexed_fields:
+                        db.collection(c).add_persistent_index(fields=[field])
+
+            loaded_versions['schemas'][c] = schema[c]['version']
+            schema_updated = True
+
+        elif schema[c]['version'] < loaded_versions['schemas'][c]:
+            raise ConnectionAbortedError("DB contains newer schema than current application -- upgrade required")
+
+
+    # check for old/missing graphs and [re-]create if needed
     for g, v in graphs.items():
+        if g not in loaded_versions['graphs'] or v['version'] > loaded_versions['graphs'][g]:
+            db.delete_graph(g)  # will be created again below
+        elif v['version'] > loaded_versions['graphs'][g]:
+            raise ConnectionAbortedError("DB contains newer schema than current application -- upgrade required")
+
         if not db.has_graph(g):
             graph = db.create_graph(g)
             graph.create_edge_definition(
@@ -46,6 +84,12 @@ def connect () -> Database:
                 to_vertex_collections=v['to_vertex_collections']
             )
 
+            schema_updated = True
+            loaded_versions['graphs'][g] = v['version']
+
+    if schema_updated:
+        mmconfig.update(loaded_versions)
+        
     return(db)
 
 
