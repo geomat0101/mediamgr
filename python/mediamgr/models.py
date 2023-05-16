@@ -84,12 +84,12 @@ def connect () -> Database:
                 to_vertex_collections=v['to_vertex_collections']
             )
 
-            schema_updated = True
             loaded_versions['graphs'][g] = v['version']
+            schema_updated = True
 
     if schema_updated:
         mmconfig.update(loaded_versions)
-        
+
     return(db)
 
 
@@ -212,7 +212,7 @@ class CollectionDocument ():
     def template_init (self):
         """Generate a new document using a template based on the collection's schema"""
         doc = {}
-        for k,v in schema[self.collection_name]['rule']['properties'].items():
+        for k,v in schema[self.collection_name]['schema']['rule']['properties'].items():
             vtype = v['type'].lower()
             if vtype == 'null':
                 doc[k] = None
@@ -252,7 +252,7 @@ class CollectionDocument ():
         if not dict == type(document):
             raise ValueError("document must be a dict")
         
-        json_validate(document, schema[self.collection_name]['rule'])
+        json_validate(document, schema[self.collection_name]['schema']['rule'])
         return(True)
     
 
