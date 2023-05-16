@@ -20,7 +20,7 @@ This assumes python3 and virtualenv / virtualenvwrapper are installed and config
 * run the example in mediamgr/python/examples
 
 ## Install the local project in editable mode
-* `pip -e .`  while in the directory containing this README
+* `pip install -e .`  while in the directory containing this README
 
 The output of `pip list` should look something like this:
 ```
