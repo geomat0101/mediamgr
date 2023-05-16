@@ -6,6 +6,20 @@ collections = {
 }
 
 
+graphs = {
+    'casting_graph': {
+        'edge_collection': 'appears_in',
+        'from_vertex_collections': ['cast'],
+        'to_vertex_collections': ['media']
+    },
+    'matching_faces': {
+        'edge_collection': 'face_matches_face',
+        'from_vertex_collections': ['faces'],
+        'to_vertex_collections': ['faces']
+    }
+}
+
+
 indexes = {
     'faces': ['cast_id', 'media_id']
 }
