@@ -72,7 +72,8 @@ def connect () -> Database:
     # check for old/missing graphs and [re-]create if needed
     for g, v in graphs.items():
         if g not in loaded_versions['graphs'] or v['version'] > loaded_versions['graphs'][g]:
-            db.delete_graph(g)  # will be created again below
+            if db.has_graph(g):
+                db.delete_graph(g)  # will be created again below
         elif v['version'] > loaded_versions['graphs'][g]:
             raise ConnectionAbortedError("DB contains newer schema than current application -- upgrade required")
 
@@ -119,11 +120,11 @@ class CollectionDocument ():
         self._key = ''          # can be user-specified via setKey()
         self._rev = ''          # arangoDB internal document versioning
 
-        self.prohibited_keys = ["_id", "_rev"]  # arangodb managed, filtered just prior to save
+        self.prohibited_keys = ["_id"]  # arangodb managed, filtered just prior to save
 
     
     def __repr__ (self):
-        return json.dumps(self.document, indent=4)
+        return json.dumps(self.document, indent=4, sort_keys=True)
 
 
     def get (self, query: str):
