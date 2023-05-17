@@ -127,14 +127,19 @@ class CollectionDocument ():
         return json.dumps(self.document, indent=4, sort_keys=True)
 
 
-    def get (self, query: str):
+    def get (self, query: str) -> dict:
         """Get a record from a collection
 
         query   --  Document ID or key
         """
         if str != type(query):
             raise ValueError("need str: _id or _key value")
-        self.setDocument(self.collection.get(query))
+
+        doc = self.collection.get(query)
+        if doc is None:
+            return
+
+        return self.setDocument(doc)
 
 
     def id_required (self):
@@ -143,16 +148,16 @@ class CollectionDocument ():
             raise ValueError("No _id on current document.  Saved yet?")
 
     
-    def new (self, document: dict = None):
+    def new (self, document: dict = None) -> dict:
         """Create a new collection document
 
         document    --  optional user-supplied dictionary conforming to the collection schema
                         None will populate the document with an empty template
         """
         if document is None:
-            self.template_init()
+            return self.template_init()
         else:
-            self.setDocument(document)
+            return self.setDocument(document)
 
 
     def save (self) -> dict:
@@ -182,7 +187,7 @@ class CollectionDocument ():
         return metadata
 
 
-    def setDocument (self, document: dict):
+    def setDocument (self, document: dict) -> dict:
         """setter method for the collection document
         
         document    --  dict conforming to the collection's schema
@@ -201,16 +206,19 @@ class CollectionDocument ():
         self.validate(document=document)
         self.document = document
 
+        return self.document
+
     
-    def setKey (self, key: str):
+    def setKey (self, key: str) -> True:
         """setter method for the document's _key property"""
         if self.document is None:
             self.template_init()
         
         self.document['_key'] = key
+        return True
 
 
-    def template_init (self):
+    def template_init (self) -> dict:
         """Generate a new document using a template based on the collection's schema"""
         doc = {}
         for k,v in schema[self.collection_name]['schema']['rule']['properties'].items():
@@ -238,10 +246,10 @@ class CollectionDocument ():
             # and should not have.
             del doc['_rev']
 
-        self.setDocument(doc)
+        return self.setDocument(doc)
         
 
-    def validate (self, document: dict = None):
+    def validate (self, document: dict = None) -> bool:
         """Validate against the collection's jsonschema definition
         
         document    --  documents other than the current object's may be submitted for validation

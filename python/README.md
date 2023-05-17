@@ -6,7 +6,16 @@ This assumes python3 and virtualenv / virtualenvwrapper are installed and config
 ## Initial virtual environment setup
 * `mkvirtualenv mediamgr`
 * `workon mediamgr` (fyi you're going to want to configure vscode to use this venv at some point too)
-* `pip install ffmpeg-python jsonschema numpy python-arango pytest`
+* Install additional required modules:
+```
+pip install \
+        ffmpeg-python \
+        jsonschema \
+        numpy \
+        Pillow \
+        pytest \
+        python-arango
+```
 
 ## System cuda / dlib dependencies (if not installed already)
 * cuda (GPU) support: [install cuda keyring](https://developer.nvidia.com/cuda-downloads?target_os=Linux&target_arch=x86_64&Distribution=Ubuntu&target_version=22.04&target_type=deb_network)
@@ -15,7 +24,7 @@ This assumes python3 and virtualenv / virtualenvwrapper are installed and config
 ## Build / Install dlib
 * `git clone https://github.com/davisking/dlib`
 * `cd dlib/`
-* `python setup.py install`
+* `python setup.py install --clean --compiler-flags "-DDLIB_GIF_SUPPORT -lgif"`
 * read the top of the build output where it's performing installed software checks.  Abort the build and install system packages if anything is missing (blas, lapack, ffmpeg, etc.  Individual symbols not found are ok and normal, but if it tells you you're missing an installed system package go fix it).  If the build completed, use pip remove dlib to nuke it.  rm -rf the dlib/build directory and restart the build to try again.
 * run the example in mediamgr/python/examples
 
@@ -40,6 +49,7 @@ jsonschema          4.17.3
 mediamgr_geomat0101 0.0.1    /path/to/geomat0101/mediamgr/python
 numpy               1.24.3
 packaging           23.1
+Pillow              9.5.0
 pip                 22.0.2
 pluggy              1.0.0
 PyJWT               2.7.0
@@ -52,4 +62,3 @@ setuptools          59.6.0
 tomli               2.0.1
 urllib3             2.0.2
 wheel               0.37.1
-```

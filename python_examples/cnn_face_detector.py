@@ -51,7 +51,14 @@ win = dlib.image_window()
 for f in sys.argv[2:]:
     start = datetime.datetime.now()
     print("Processing file: {}".format(f))
-    img = dlib.load_rgb_image(f)
+    try:
+        img = dlib.load_rgb_image(f)
+    except RuntimeError as e:
+        if str(e) == "Dlib only supports reading GIF files containing one image.":
+            print(e)
+            continue
+        else:
+            raise
     # The 1 in the second argument indicates that we should upsample the image
     # 1 time.  This will make everything bigger and allow us to detect more
     # faces.

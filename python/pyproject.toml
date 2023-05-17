@@ -25,3 +25,6 @@ classifiers = [
 addopts = [
     "--import-mode=importlib",
 ]
+
+[project.scripts]
+mmingest = "mediamgr.ingestion:main"
