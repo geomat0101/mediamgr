@@ -28,17 +28,15 @@ def test_e2e():
     # use a CastDocument to exercise the base CollectionDocument class
     cache = {}
 
-    ## __init__
+    ## __init__; transitively: new, setDocument, validate
     c = CastDocument(db)
     assert c.collection_name == 'cast'
-    assert c.document is None
     assert c._id == c._key == c._rev == ''
+    json_validate(c.document, schema['cast']['schema']['rule'])
 
-    ## setKey, validate, transitively: template_init
+    ## setKey
     c.setKey('1000')
     assert c.document['_key'] == '1000'
-    c.validate()
-    json_validate(c.document, schema['cast']['schema']['rule'])
 
     ## save (new insert)
     c.save()
@@ -48,13 +46,13 @@ def test_e2e():
 
     cache['cast/1000'] = repr(c)
 
-    ## get, transitively: setDocument
+    ## get
     c = None
     c = CastDocument(db)
     c.get('1000')
     assert repr(c) == cache['cast/1000']
 
-    ## new, id_required
+    ## id_required
     c.new()
     with pytest.raises(ValueError):
         c.id_required()

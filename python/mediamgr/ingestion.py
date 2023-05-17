@@ -5,10 +5,17 @@ from PIL import ExifTags, Image
 import sys
 
 
-def getExifData (metadata: dict, dirname: str, filename: str) -> dict:
+def getPILMetaData (metadata: dict, dirname: str, filename: str) -> dict:
     img = Image.open(os.path.join(dirname, filename))
     exif = img.getexif()
     metadata['exif'] = { ExifTags.TAGS[k]: repr(v) for k, v in exif.items() }
+    metadata['format'] = img.format
+    metadata['format_description'] = img.format_description
+    metadata['height'] = img.height
+    metadata['mimetype'] = img.get_format_mimetype()
+    metadata['size'] = list(img.size)   # convert from tuple
+    metadata['width'] = img.width
+    metadata['xmp'] = img.getxmp()
     return metadata
 
 
@@ -26,7 +33,7 @@ def process_image_file (md: MediaDocument, dirname: str, filename: str) -> dict:
     
     metadata = {'hash_md5': hash}
 
-    getExifData(metadata, dirname, filename)
+    getPILMetaData(metadata, dirname, filename)
 
     md.setDocument(metadata)
     md.setKey(hash)

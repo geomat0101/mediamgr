@@ -81,15 +81,22 @@ schema['faces'] = {
 }
 
 schema['media'] = {
-    'version': 4,
+    'version': 6,
     'schema': {
         'rule': {
             'type': 'object',
             'properties': {
+                'exif': {'type': 'object'},
+                'format': {'type': 'string'},
+                'format_description': {'type': 'string'},
                 'hash_md5': {'type': 'string'},
-                'exif': {'type': 'object'}
+                'height': {'type': 'integer'},
+                'mimetype': {'type': 'string'},
+                'size': {'type': 'array'},
+                'width': {'type': 'integer'},
+                'xmp': {'type': 'object'}
             },
-            'required': ['hash_md5', 'exif']
+            'required': ['exif', 'hash_md5', 'xmp']
         },
         'level': 'moderate',
         'message': 'Schema Validation Failed.'

@@ -102,11 +102,12 @@ class CollectionDocument ():
     db collections.
     """
 
-    def __init__ (self, dbconn: Database, collection: str):
+    def __init__ (self, dbconn: Database, collection: str, document: dict = None):
         """Instantiate a collection object
 
         dbconn      --  db handle from mediamgr.connect()
         collection  --  name of collection to load
+        document    --  optional dict with data to initialize the document (via merge())
         """
         self.dbconn = dbconn
         self.collection_name = collection
@@ -121,6 +122,8 @@ class CollectionDocument ():
         self._rev = ''          # arangoDB internal document versioning
 
         self.prohibited_keys = ["_id"]  # arangodb managed, filtered just prior to save
+
+        self.new(document=document)
 
     
     def __repr__ (self):
@@ -146,19 +149,61 @@ class CollectionDocument ():
         """Verifies the _id property is set"""
         if not self._id:
             raise ValueError("No _id on current document.  Saved yet?")
+    
+
+    def merge (self, document: dict) -> dict:
+        """Merge a dict into the current document.
+        Overwrites any existing values with what is in the dict
+        Ignores any keys starting with an underscore (_id, _key, _rev, etc)
+
+        A useful design pattern is to call new() and/or setKey() on an empty object to lay down
+        an valid template and then merge() in a dict instead of trying to ensure the full
+        dict is schema compliant and passing it off to setDocument().  YMMV
+        
+        document    --  user-supplied dictionary
+        """
+        for k,v in document.items():
+            if k.startswith('_'):
+                continue
+
+            self.document[k] = v
+        
+        return self.document
 
     
     def new (self, document: dict = None) -> dict:
-        """Create a new collection document
-
-        document    --  optional user-supplied dictionary conforming to the collection schema
-                        None will populate the document with an empty template
+        """Generate a new document using a template based on the collection's schema
+        
+        document    --  Optional dict with data that will merge() in after the template is created
         """
-        if document is None:
-            return self.template_init()
-        else:
-            return self.setDocument(document)
-
+        doc = {}
+        for k,v in schema[self.collection_name]['schema']['rule']['properties'].items():
+            vtype = v['type'].lower()
+            if vtype == 'null':
+                doc[k] = None
+            elif vtype == 'boolean':
+                doc[k] = False
+            elif vtype == 'object':
+                doc[k] = {}
+            elif vtype == 'array':
+                doc[k] = []
+            elif vtype == 'number':
+                doc[k] = 0.0
+            elif vtype == 'string':
+                doc[k] = ''
+            elif vtype == 'integer':
+                doc[k] = 0
+            else:
+                raise ValueError(f"illegal type value '{vtype}' in jsonschema for collection '{self.collection_name}'")
+        
+        if '_rev' in doc:
+            # this is a new document, and having _rev in there will make save try to update it 
+            # instead of insert it.  This means somebody put _rev into the collection schema 
+            # and should not have.
+            del doc['_rev']
+        
+        return self.setDocument(doc, merge_document=document)
+        
 
     def save (self) -> dict:
         """Save the collection document
@@ -187,14 +232,17 @@ class CollectionDocument ():
         return metadata
 
 
-    def setDocument (self, document: dict) -> dict:
+    def setDocument (self, document: dict, merge_document: dict = None) -> dict:
         """setter method for the collection document
         
-        document    --  dict conforming to the collection's schema
+        document        --  dict conforming to the collection's schema
+        merge_document  --  Optional dict with data to merge in after the primary document is set
         """
         if dict != type(document):
             raise ValueError("document must be a dict")
         
+        self.validate(document=document)
+
         self._id = self._key = self._rev = ''
         if '_id' in document:
             self._id = document['_id']
@@ -203,8 +251,11 @@ class CollectionDocument ():
         if '_rev' in document:
             self._rev = document['_rev']
 
-        self.validate(document=document)
         self.document = document
+
+        if merge_document:
+            self.merge(merge_document)
+            self.validate()
 
         return self.document
 
@@ -212,42 +263,11 @@ class CollectionDocument ():
     def setKey (self, key: str) -> True:
         """setter method for the document's _key property"""
         if self.document is None:
-            self.template_init()
+            self.new()
         
         self.document['_key'] = key
         return True
 
-
-    def template_init (self) -> dict:
-        """Generate a new document using a template based on the collection's schema"""
-        doc = {}
-        for k,v in schema[self.collection_name]['schema']['rule']['properties'].items():
-            vtype = v['type'].lower()
-            if vtype == 'null':
-                doc[k] = None
-            elif vtype == 'boolean':
-                doc[k] = False
-            elif vtype == 'object':
-                doc[k] = {}
-            elif vtype == 'array':
-                doc[k] = []
-            elif vtype == 'number':
-                doc[k] = 0.0
-            elif vtype == 'string':
-                doc[k] = ''
-            elif vtype == 'integer':
-                doc[k] = 0
-            else:
-                raise ValueError("illegal type value '{}' in jsonschema for collection '{}'" % vtype, self.collection_name)
-        
-        if '_rev' in doc:
-            # this is a new document, and having _rev in there will make save try to update it 
-            # instead of insert it.  This means somebody put _rev into the collection schema 
-            # and should not have.
-            del doc['_rev']
-
-        return self.setDocument(doc)
-        
 
     def validate (self, document: dict = None) -> bool:
         """Validate against the collection's jsonschema definition
