@@ -53,6 +53,9 @@ for f in sys.argv[2:]:
     print("Processing file: {}".format(f))
     try:
         img = dlib.load_rgb_image(f)
+        if max(img.shape) > 1024:
+            resize = 1024./max(img.shape)
+            img = dlib.resize_image(img, int(round(img.shape[0] * resize)), int(round(img.shape[1] * resize)))
     except RuntimeError as e:
         if str(e) == "Dlib only supports reading GIF files containing one image.":
             print(e)
@@ -60,9 +63,9 @@ for f in sys.argv[2:]:
         else:
             raise
     # The 1 in the second argument indicates that we should upsample the image
-    # 1 time.  This will make everything bigger and allow us to detect more
+    # 2 times.  This will make everything bigger and allow us to detect more
     # faces.
-    dets = cnn_face_detector(img, 1)
+    dets = cnn_face_detector(img, 2)
     '''
     This detector returns a mmod_rectangles object. This object contains a list of mmod_rectangle objects.
     These objects can be accessed by simply iterating over the mmod_rectangles object
