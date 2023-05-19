@@ -64,12 +64,12 @@ schema['cast'] = {
 }
 
 schema['faces'] = {
-    'version': 1,
+    'version': 2,
     'schema': {
         'rule': {
             'type': 'object',
             'properties': {
-                'face_identifier':  {'type': 'string'},
+                'face_identifier':  {'type': 'array'},
                 'media_id':         {'type': 'string'},
                 'cast_id':          {'type': 'string'}
             },
